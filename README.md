@@ -1,4 +1,4 @@
-# 🌿 ha-plant-pulse
+# 🌿 plant-care-ha
 
 A tiny Home Assistant plant calendar that helps me not kill (or forget) my plants.
 
