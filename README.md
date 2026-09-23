@@ -4,7 +4,12 @@ A tiny Home Assistant plant calendar that helps me not kill (or forget) my plant
 
 I water all my plants on the same rhythm and adjust by feel with a moisture meter, so I don't need a separate tracker for each plant (for now). Press a button when you've watered, fertilized or sprayed, and the dashboard tells you what's next.
 
-<!-- ![Screenshot](docs/screenshot.png) -->
+<p align="center">
+  <img src="docs/glanceBoard.png" width="300" height="300">
+</p>
+<p align="center">
+  <img src="docs/infoBoard.png" width="600" height="600">
+</p>
 
 ## Features
 
