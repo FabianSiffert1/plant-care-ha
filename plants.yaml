@@ -1,0 +1,159 @@
+# Plant care package. Requires in configuration.yaml:
+#   homeassistant:
+#     packages: !include_dir_named packages
+
+# ---------- Stored dates ----------
+input_datetime:
+  plant_last_watered:
+    name: Plants last watered
+    has_date: true
+    has_time: false
+    icon: mdi:watering-can
+  plant_last_fertilized:
+    name: Plants last fertilized
+    has_date: true
+    has_time: false
+    icon: mdi:flask-outline
+  plant_last_insecticide:
+    name: Plants last insecticide
+    has_date: true
+    has_time: false
+    icon: mdi:bug
+
+# ---------- Intervals (set once in the UI: 7 and 14) ----------
+input_number:
+  plant_water_interval:
+    name: Water every
+    min: 1
+    max: 30
+    step: 1
+    mode: box
+    unit_of_measurement: days
+    icon: mdi:calendar-refresh
+  plant_fertilize_interval:
+    name: Fertilize every
+    min: 1
+    max: 90
+    step: 1
+    mode: box
+    unit_of_measurement: days
+    icon: mdi:calendar-refresh
+
+# ---------- Button actions ----------
+script:
+  plant_watered:
+    alias: "Plants: I watered today"
+    icon: mdi:watering-can
+    sequence:
+      - action: input_datetime.set_datetime
+        target:
+          entity_id: input_datetime.plant_last_watered
+        data:
+          date: "{{ now().strftime('%Y-%m-%d') }}"
+
+  plant_fertilized:
+    alias: "Plants: I fertilized today"
+    icon: mdi:flask-outline
+    sequence:
+      - action: input_datetime.set_datetime
+        target:
+          entity_id: input_datetime.plant_last_fertilized
+        data:
+          date: "{{ now().strftime('%Y-%m-%d') }}"
+
+  plant_insecticide:
+    alias: "Plants: I used insecticide today"
+    icon: mdi:bug
+    sequence:
+      - action: input_datetime.set_datetime
+        target:
+          entity_id: input_datetime.plant_last_insecticide
+        data:
+          date: "{{ now().strftime('%Y-%m-%d') }}"
+
+# ---------- Sensors ----------
+template:
+  - sensor:
+      - name: Plant water status
+        unique_id: plant_water_status
+        icon: mdi:watering-can
+        state: >
+          {% from 'plants.jinja' import status %}
+          {{ status('input_datetime.plant_last_watered',
+                    states('input_number.plant_water_interval') | int(7)) }}
+
+      - name: Plant fertilizer status
+        unique_id: plant_fertilizer_status
+        icon: mdi:flask-outline
+        state: >
+          {% from 'plants.jinja' import status %}
+          {{ status('input_datetime.plant_last_fertilized',
+                    states('input_number.plant_fertilize_interval') | int(14)) }}
+
+      - name: Plant care
+        unique_id: plant_care
+        state: >
+          {% set w = states('sensor.plant_water_status') %}
+          {% set f = states('sensor.plant_fertilizer_status') %}
+          {% if w == 'overdue' %}thirsty
+          {% elif w == 'due' and f in ['due', 'overdue'] %}water_and_feed
+          {% elif w == 'due' %}water
+          {% elif f == 'overdue' %}forgot_feed
+          {% elif f == 'due' %}feed
+          {% elif w == 'unknown' or f == 'unknown' %}unknown
+          {% else %}happy{% endif %}
+        icon: >
+          {{ {
+            'happy': 'mdi:flower',
+            'water': 'mdi:watering-can',
+            'water_and_feed': 'mdi:watering-can',
+            'feed': 'mdi:sprout',
+            'forgot_feed': 'mdi:sprout-outline',
+            'thirsty': 'mdi:water-alert',
+          }.get(this.state, 'mdi:help-circle-outline') }}
+        attributes:
+          color: >
+            {% set s = states('sensor.plant_care') %}
+            {{ 'green' if s == 'happy' else 'red' if s == 'thirsty'
+               else 'grey' if s == 'unknown' else 'orange' }}
+          headline: >
+            {{ {
+              'happy': 'Plants are happy',
+              'water': 'Time to water',
+              'feed': 'Time to fertilize',
+              'water_and_feed': 'Water & fertilize today',
+              'forgot_feed': 'You forgot the fertilizer',
+              'thirsty': 'Dude. Water. Now.',
+            }.get(states('sensor.plant_care'), 'Log your first watering & feeding') }}
+          water_message: >
+            {% from 'plants.jinja' import days_since, ago, when %}
+            {% set d = days_since('input_datetime.plant_last_watered') | int %}
+            {% set i = states('input_number.plant_water_interval') | int(7) %}
+            {% if d < 0 %}No watering logged yet.
+            {% elif d >= i + 3 %}You watered {{ ago(d) }}. You need to water, like, now.
+            {% elif d >= i %}You watered {{ ago(d) }}. You need to water again.
+            {% else %}You watered {{ ago(d) }}. Next watering {{ when(i - d) }}.{% endif %}
+          fertilizer_message: >
+            {% from 'plants.jinja' import days_since, ago, when %}
+            {% set d = days_since('input_datetime.plant_last_fertilized') | int %}
+            {% set i = states('input_number.plant_fertilize_interval') | int(14) %}
+            {% if d < 0 %}No fertilizing logged yet.
+            {% elif d >= i + 3 %}You fertilized {{ ago(d) }}. You forgot! Fertilize today.
+            {% elif d >= i %}You used fertilizer {{ ago(d) }}. Use fertilizer today.
+            {% else %}You fertilized {{ ago(d) }}. Next feeding {{ when(i - d) }}.{% endif %}
+
+  # Permanent outbreak log (survives the recorder's 10-day purge)
+  - trigger:
+      - trigger: state
+        entity_id: input_datetime.plant_last_insecticide
+    sensor:
+      - name: Plant insecticide log
+        unique_id: plant_insecticide_log
+        icon: mdi:bug
+        state: "{{ trigger.to_state.state }}"
+        attributes:
+          dates: >
+            {% set old = this.attributes.get('dates', []) if this is defined else [] %}
+            {% set new = trigger.to_state.state %}
+            {{ ((old + [new]) if new not in ['unknown', 'unavailable'] else old)
+               | unique | list | sort | list }}

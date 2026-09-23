@@ -1,0 +1,34 @@
+{# Days since the date stored in an input_datetime. Returns -1 if never set. #}
+{% macro days_since(entity) -%}
+  {%- set d = strptime(states(entity), '%Y-%m-%d', none) -%}
+  {{- (now().date() - d.date()).days if d is not none and d.year > 2000 else -1 -}}
+{%- endmacro %}
+
+{# ok / due / overdue / unknown. "due" lasts 3 days, then it turns "overdue". #}
+{% macro status(entity, interval) -%}
+  {%- set d = days_since(entity) | int -%}
+  {%- if d < 0 -%}unknown
+  {%- elif d < interval -%}ok
+  {%- elif d < interval + 3 -%}due
+  {%- else -%}overdue
+  {%- endif -%}
+{%- endmacro %}
+
+{# "today", "yesterday", "on Saturday", "last Monday", "two weeks ago", "10 days ago" #}
+{% macro ago(d) -%}
+  {%- set d = d | int -%}
+  {%- set words = ['one','two','three','four','five','six','seven','eight'] -%}
+  {%- if d == 0 -%}today
+  {%- elif d == 1 -%}yesterday
+  {%- elif d < 7 -%}on {{ (now() - timedelta(days=d)).strftime('%A') }}
+  {%- elif d == 7 -%}last {{ now().strftime('%A') }}
+  {%- elif d % 7 == 0 and d // 7 <= 8 -%}{{ words[d // 7 - 1] }} weeks ago
+  {%- else -%}{{ d }} days ago
+  {%- endif -%}
+{%- endmacro %}
+
+{# "tomorrow" or "Friday (in 3 days)" #}
+{% macro when(n) -%}
+  {%- set n = n | int -%}
+  {{- 'tomorrow' if n == 1 else (now() + timedelta(days=n)).strftime('%A') ~ ' (in ' ~ n ~ ' days)' -}}
+{%- endmacro %}

@@ -1,0 +1,78 @@
+# CARD 1 — Status header + buttons
+# Paste into a dashboard: Edit -> Add card -> Manual (needs Mushroom)
+type: vertical-stack
+cards:
+  # --- Header: icon, headline, short subline ---
+  - type: custom:mushroom-template-card
+    entity: sensor.plant_care
+    primary: "{{ state_attr('sensor.plant_care', 'headline') }}"
+    secondary: >
+      {% from 'plants.jinja' import days_since %}
+      {% set wd = days_since('input_datetime.plant_last_watered') | int %}
+      {% set fd = days_since('input_datetime.plant_last_fertilized') | int %}
+      {% set wi = states('input_number.plant_water_interval') | int(7) %}
+      {% set fi = states('input_number.plant_fertilize_interval') | int(14) %}
+      {% macro day(n) -%}
+        {{- 'tomorrow' if n == 1 else (now() + timedelta(days=n)).strftime('%A') -}}
+      {%- endmacro %}
+      {% set w = 'not logged' if wd < 0
+         else 'now!' if wd >= wi + 3
+         else 'today' if wd >= wi
+         else day(wi - wd) %}
+      {% set f = 'not logged' if fd < 0
+         else 'overdue!' if fd >= fi + 3
+         else 'today' if fd >= fi
+         else day(fi - fd) %}
+      💧 {{ w }}  ·  🧪 {{ f }}
+    icon: "{{ states.sensor.plant_care.attributes.icon }}"
+    icon_color: "{{ state_attr('sensor.plant_care', 'color') }}"
+    badge_icon: >
+      {{ 'mdi:flask' if states('sensor.plant_fertilizer_status') in ['due', 'overdue'] else '' }}
+    badge_color: >
+      {{ 'red' if states('sensor.plant_fertilizer_status') == 'overdue' else 'orange' }}
+    fill_container: true
+    tap_action:
+      action: none
+
+  # --- Buttons (icons light up when that task is due) ---
+  - type: horizontal-stack
+    cards:
+      - type: custom:mushroom-template-card
+        primary: Watered
+        icon: mdi:watering-can
+        icon_color: >
+          {% set s = states('sensor.plant_water_status') %}
+          {{ 'red' if s == 'overdue' else 'orange' if s == 'due' else 'blue' }}
+        layout: vertical
+        fill_container: true
+        tap_action:
+          action: perform-action
+          perform_action: script.plant_watered
+          confirmation:
+            text: Log watering for today?
+
+      - type: custom:mushroom-template-card
+        primary: Fertilized
+        icon: mdi:flask-outline
+        icon_color: >
+          {% set s = states('sensor.plant_fertilizer_status') %}
+          {{ 'red' if s == 'overdue' else 'orange' if s == 'due' else 'green' }}
+        layout: vertical
+        fill_container: true
+        tap_action:
+          action: perform-action
+          perform_action: script.plant_fertilized
+          confirmation:
+            text: Log fertilizer for today?
+
+      - type: custom:mushroom-template-card
+        primary: Insecticide
+        icon: mdi:bug
+        icon_color: purple
+        layout: vertical
+        fill_container: true
+        tap_action:
+          action: perform-action
+          perform_action: script.plant_insecticide
+          confirmation:
+            text: Log insecticide for today?

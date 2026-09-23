@@ -1,0 +1,48 @@
+# CARD 2 — Plant info, wide layout (core cards only)
+# Three columns side by side: summary | schedule | pest history
+type: horizontal-stack
+grid_options:        # sections view: span the full row
+  columns: full
+cards:
+  # --- Column 1: the "today is Monday..." summary ---
+  - type: markdown
+    title: 🌿 Today
+    content: |
+      **{{ now().strftime('%A, %d %B') }}**
+
+      💧 {{ state_attr('sensor.plant_care', 'water_message') }}
+
+      🧪 {{ state_attr('sensor.plant_care', 'fertilizer_message') }}
+
+  # --- Column 2: dates + intervals (tap a date to fix a mistake) ---
+  - type: entities
+    title: 📅 Schedule
+    state_color: false
+    entities:
+      - entity: input_datetime.plant_last_watered
+        name: Watered
+      - entity: input_datetime.plant_last_fertilized
+        name: Fertilized
+      - entity: input_datetime.plant_last_insecticide
+        name: Insecticide
+      - entity: input_number.plant_water_interval
+        name: Water every
+      - entity: input_number.plant_fertilize_interval
+        name: Feed every
+
+  # --- Column 3: outbreak history (latest 5 to keep the row even) ---
+  - type: markdown
+    title: 🐛 Pest treatments
+    content: |
+      {% set dates = state_attr('sensor.plant_insecticide_log', 'dates') or [] %}
+      {% if dates | count == 0 %}
+      None logged yet 🎉
+      {% else %}
+      {% set last = (now().date() - strptime(dates[-1], '%Y-%m-%d').date()).days %}
+      **{{ dates | count }}** total · last **{{ last }}** days ago
+
+      {% for d in (dates | reverse | list)[:5] %}
+      - {{ as_timestamp(d) | timestamp_custom('%a %d %b %Y') }}
+      {% endfor %}
+      {% if dates | count > 5 %}*…and {{ dates | count - 5 }} older*{% endif %}
+      {% endif %}
